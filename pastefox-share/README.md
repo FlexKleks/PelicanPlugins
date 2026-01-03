@@ -1,6 +1,6 @@
-# PasteFox Share
+# PasteFox Share (by FlexKleks)
 
-A plugin for [Pelican Panel](https://pelican.dev) to share console logs via [pastefox.com](https://pastefox.com) with one click.
+Share console logs via [pastefox.com](https://pastefox.com) with one click.
 
 ## Features
 
@@ -10,23 +10,8 @@ A plugin for [Pelican Panel](https://pelican.dev) to share console logs via [pas
 - Visual effects (Matrix, Confetti, Glitch, etc.)
 - Theme selection (Light/Dark)
 - Password protection support
+- Custom domain support
 - Fetches up to 5000 log lines
-- Admin settings page in sidebar
-
-## Installation
-
-1. Download the latest release ZIP file from the [Releases](https://github.com/FlexKleks/PelicanPlugins/releases) page
-2. Go to your Pelican Panel admin area
-3. Navigate to **Admin → Plugins**
-4. Click **"Import file"**
-5. Select the downloaded ZIP file
-6. Click **"Import"**
-
-### Clear Cache
-
-```bash
-php artisan optimize:clear
-```
 
 ## Configuration
 
@@ -34,47 +19,38 @@ php artisan optimize:clear
 2. Find **PasteFox Share** and click the **Settings** (gear icon) button
 3. Configure the following settings:
 
-| Setting | Description |
-|---------|-------------|
-| API Key | Optional - Get from https://pastefox.com/dashboard |
-| Visibility | PUBLIC or PRIVATE (requires API key) |
-| Effect | Visual effect for the paste |
-| Theme | Light or Dark theme |
-| Password | Optional password protection |
+| Setting       | Description                                        |
+|---------------|----------------------------------------------------|
+| API Key       | Optional - Get from https://pastefox.com/dashboard |
+| Visibility    | PUBLIC or PRIVATE (requires API key)               |
+| Effect        | Visual effect for the paste                        |
+| Theme         | Light or Dark theme                                |
+| Password      | Optional password protection                       |
+| Custom Domain | Use your own domain for paste URLs                 |
 
 ### Without API Key
 - Pastes expire after 7 days
 - Always public visibility
-- Basic features only
 
 ### With API Key
 - No expiration limit
 - Private pastes available
+- Effects
 - Password protection
-- Paste linked to your account
+- Custom domain support
+
+## Custom Domains
+
+Use your own domain (e.g., `logs.yourdomain.com`) for sharing pastes.
+
+1. Add and verify your domain at [PasteFox Dashboard → Custom Domains](https://pastefox.com/dashboard/domains)
+2. Verify & Activate the domain in the PasteFox dashboard
+3. Select the domain in the plugin settings
+
+The plugin automatically falls back to `pastefox.com` if the configured domain becomes unavailable or inactive.
 
 ## Usage
 
 1. Open a server console
 2. Click the **"Share Logs"** button in the header
 3. Copy the generated link from the notification
-
-## Coming Soon
-
-- File sharing
-- Custom domains
-- Folders
-- Syntax highlighting themes
-
-## Author
-
-Created by [FlexKleks](https://github.com/FlexKleks)
-
-## Support
-
-- [GitHub Issues](https://github.com/FlexKleks/PelicanPlugins/issues)
-- [Pelican Discord](https://discord.gg/pelican-panel)
-
-## License
-
-MIT

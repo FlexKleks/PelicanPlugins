@@ -51,47 +51,42 @@ class UploadLogsAction extends Action
                 $logs = is_array($logs) ? implode(PHP_EOL, $logs) : $logs;
 
                 $apiKey = config('pastefox-share.api_key');
-                $hasApiKey = !empty($apiKey);
+                $validApiKey = $this->isApiKeyValid($apiKey);
 
-                // Build request payload
+                $headers = ['Content-Type' => 'application/json'];
+
                 $payload = [
                     'content' => $logs,
-                    'title' => 'Console Logs: '.$server->name.' - '.now()->format('Y-m-d H:i:s'),
+                    'title' => 'Console Logs: ' . $server->name . ' - ' . now()->format('Y-m-d H:i:s'),
                     'language' => 'log',
-                    'effect' => config('pastefox-share.effect', 'NONE'),
-                    'theme' => config('pastefox-share.theme', 'dark'),
+                    'effect' => config('pastefox-share.effect'),
+                    'theme' => config('pastefox-share.theme'),
                 ];
 
-                // Only add these options if API key is present
-                if ($hasApiKey) {
-                    $payload['visibility'] = config('pastefox-share.visibility', 'PUBLIC');
+                if ($validApiKey) {
+                    $headers['X-API-Key'] = $apiKey;
+                    $payload['visibility'] = config('pastefox-share.visibility');
 
                     $password = config('pastefox-share.password');
-                    if (!empty($password)) {
+                    if (filled($password)) {
                         $payload['password'] = $password;
                     }
                 }
 
-                // Build HTTP request
-                $request = Http::withHeaders(['Content-Type' => 'application/json'])
+                $response = Http::withHeaders($headers)
                     ->timeout(30)
-                    ->connectTimeout(5);
-
-                // Add API key header if available
-                if ($hasApiKey) {
-                    $request = $request->withHeaders(['X-API-Key' => $apiKey]);
-                }
-
-                $response = $request
+                    ->connectTimeout(5)
                     ->throw()
                     ->post('https://pastefox.com/api/pastes', $payload)
                     ->json();
 
                 if ($response['success']) {
-                    $url = 'https://pastefox.com/'.$response['data']['slug'];
+                    $customDomain = $validApiKey ? $this->getActiveCustomDomain($apiKey) : null;
+                    $baseUrl = filled($customDomain) ? "https://{$customDomain}" : 'https://pastefox.com';
+                    $url = $baseUrl . '/' . $response['data']['slug'];
 
                     $body = $url;
-                    if (!$hasApiKey) {
+                    if (!$validApiKey) {
                         $body .= "\n".trans('pastefox-share::messages.expires_7_days');
                     }
 
@@ -118,5 +113,57 @@ class UploadLogsAction extends Action
                     ->send();
             }
         });
+    }
+
+    protected function getActiveCustomDomain(?string $apiKey): ?string
+    {
+        $configuredDomain = config('pastefox-share.custom_domain');
+
+        if (blank($configuredDomain) || blank($apiKey)) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'X-API-Key' => $apiKey,
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout(5)
+                ->get('https://pastefox.com/api/domains')
+                ->json();
+
+            if ($response['success'] ?? false) {
+                foreach ($response['domains'] ?? [] as $domain) {
+                    if ($domain['domain'] === $configuredDomain && ($domain['isActive'] ?? false)) {
+                        return $configuredDomain;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // Silently fail, fall back to default
+        }
+
+        return null;
+    }
+
+    protected function isApiKeyValid(?string $apiKey): bool
+    {
+        if (blank($apiKey)) {
+            return false;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'X-API-Key' => $apiKey,
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout(5)
+                ->get('https://pastefox.com/api/domains')
+                ->json();
+
+            return $response['success'] ?? false;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 }
