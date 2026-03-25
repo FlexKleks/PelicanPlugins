@@ -7,6 +7,7 @@ use App\Traits\EnvironmentWriterTrait;
 use Filament\Contracts\Plugin;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Panel;
 use Filament\Schemas\Components\Section;
@@ -67,14 +68,6 @@ class PasteFoxSharePlugin implements HasPluginSettings, Plugin
                         ])
                         ->default(fn () => config('pastefox-share.effect', 'NONE')),
 
-                    Select::make('theme')
-                        ->label(trans('pastefox-share::messages.theme'))
-                        ->options([
-                            'dark' => trans('pastefox-share::messages.theme_dark'),
-                            'light' => trans('pastefox-share::messages.theme_light'),
-                        ])
-                        ->default(fn () => config('pastefox-share.theme', 'dark')),
-
                     TextInput::make('password')
                         ->label(trans('pastefox-share::messages.password'))
                         ->password()
@@ -97,6 +90,20 @@ class PasteFoxSharePlugin implements HasPluginSettings, Plugin
                             ? trans('pastefox-share::messages.custom_domain_helper')
                             : trans('pastefox-share::messages.custom_domain_no_api_key'))
                         ->disabled(fn () => blank(config('pastefox-share.api_key'))),
+                ]),
+
+            Section::make(trans('pastefox-share::messages.section_advanced'))
+                ->description(trans('pastefox-share::messages.section_advanced_description'))
+                ->schema([
+                    Toggle::make('file_sharing')
+                        ->label(trans('pastefox-share::messages.file_sharing'))
+                        ->helperText(trans('pastefox-share::messages.file_sharing_helper'))
+                        ->default(fn () => config('pastefox-share.file_sharing', true)),
+
+                    Toggle::make('debug')
+                        ->label(trans('pastefox-share::messages.debug'))
+                        ->helperText(trans('pastefox-share::messages.debug_helper'))
+                        ->default(fn () => config('pastefox-share.debug', false)),
                 ]),
         ];
     }
@@ -148,9 +155,10 @@ class PasteFoxSharePlugin implements HasPluginSettings, Plugin
             'PASTEFOX_API_KEY' => $data['api_key'] ?? '',
             'PASTEFOX_VISIBILITY' => $data['visibility'] ?? 'PUBLIC',
             'PASTEFOX_EFFECT' => $data['effect'] ?? 'NONE',
-            'PASTEFOX_THEME' => $data['theme'] ?? 'dark',
             'PASTEFOX_PASSWORD' => $data['password'] ?? '',
             'PASTEFOX_CUSTOM_DOMAIN' => $data['custom_domain'] ?? '',
+            'PASTEFOX_FILE_SHARING' => ($data['file_sharing'] ?? true) ? 'true' : 'false',
+            'PASTEFOX_DEBUG' => ($data['debug'] ?? false) ? 'true' : 'false',
         ]);
 
         Notification::make()
