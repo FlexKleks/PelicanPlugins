@@ -3,6 +3,7 @@
 namespace FlexKleks\PasteFoxShare\Filament\Components\Actions;
 
 use App\Models\Server;
+use App\Repositories\Daemon\DaemonFileRepository;
 use Exception;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -11,27 +12,27 @@ use Filament\Support\Enums\Size;
 use FlexKleks\PasteFoxShare\Concerns\HasPasteFoxLogging;
 use Illuminate\Support\Facades\Http;
 
-class UploadLogsAction extends Action
+class ShareFileAction extends Action
 {
     use HasPasteFoxLogging;
+    protected static array $allowedExtensions = [
+        'log', 'txt', 'cfg', 'conf', 'config', 'ini', 'json', 'xml', 'yaml', 'yml',
+        'properties', 'toml', 'env', 'csv', 'md', 'html', 'css', 'js', 'ts',
+        'php', 'py', 'java', 'lua', 'sh', 'bash', 'bat', 'cmd', 'ps1',
+        'sql', 'htaccess', 'nginx', 'vhost', 'service', 'timer',
+        'sk', 'mcmeta', 'lang', 'lore',
+    ];
 
     public static function getDefaultName(): ?string
     {
-        return 'upload_logs_pastefox';
+        return 'share_file_pastefox';
     }
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->hidden(function () {
-            /** @var Server $server */
-            $server = Filament::getTenant();
-
-            return $server->retrieveStatus()->isOffline();
-        });
-
-        $this->label(fn () => trans('pastefox-share::messages.share_logs'));
+        $this->label(fn () => trans('pastefox-share::messages.share_file'));
 
         $this->icon('tabler-share');
 
@@ -39,21 +40,61 @@ class UploadLogsAction extends Action
 
         $this->size(Size::ExtraLarge);
 
+        $this->hidden(function () {
+            if (!config('pastefox-share.file_sharing', true)) {
+                return true;
+            }
+
+            $livewire = $this->getLivewire();
+            $path = $livewire->path ?? '';
+
+            if (blank($path)) {
+                return true;
+            }
+
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+            return !in_array($extension, static::$allowedExtensions);
+        });
+
         $this->action(function () {
             /** @var Server $server */
             $server = Filament::getTenant();
+            $livewire = $this->getLivewire();
+            $path = $livewire->path ?? '';
 
-            self::logInfo('Console log share triggered', ['server' => $server->name]);
+            self::logInfo('File share action triggered', [
+                'path' => $path,
+                'server' => $server->name,
+            ]);
+
+            if (blank($path)) {
+                Notification::make()
+                    ->title(trans('pastefox-share::messages.upload_failed'))
+                    ->body(trans('pastefox-share::messages.file_not_found'))
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            if (!in_array($extension, static::$allowedExtensions)) {
+                Notification::make()
+                    ->title(trans('pastefox-share::messages.upload_failed'))
+                    ->body(trans('pastefox-share::messages.file_type_not_allowed'))
+                    ->danger()
+                    ->send();
+
+                return;
+            }
 
             try {
-                $logs = Http::daemon($server->node)
-                    ->get("/api/servers/{$server->uuid}/logs", [
-                        'size' => 5000,
-                    ])
-                    ->throw()
-                    ->json('data');
+                $fileRepository = (new DaemonFileRepository())->setServer($server);
+                $content = $fileRepository->getContent($path, 5 * 1024 * 1024);
 
-                $logs = is_array($logs) ? implode(PHP_EOL, $logs) : $logs;
+                $fileName = basename($path);
+                $language = $this->detectLanguage($extension);
 
                 $apiKey = config('pastefox-share.api_key');
                 $validApiKey = $this->isApiKeyValid($apiKey);
@@ -61,9 +102,9 @@ class UploadLogsAction extends Action
                 $headers = ['Content-Type' => 'application/json'];
 
                 $payload = [
-                    'content' => $logs,
-                    'title' => 'Console Logs: ' . $server->name . ' - ' . now()->format('Y-m-d H:i:s'),
-                    'language' => 'log',
+                    'content' => $content,
+                    'title' => $fileName . ' - ' . $server->name . ' - ' . now()->format('Y-m-d H:i:s'),
+                    'language' => $language,
                     'effect' => config('pastefox-share.effect'),
                 ];
 
@@ -76,6 +117,13 @@ class UploadLogsAction extends Action
                         $payload['password'] = $password;
                     }
                 }
+
+                self::logDebug('Uploading file to PasteFox', [
+                    'file' => $fileName,
+                    'language' => $language,
+                    'has_api_key' => $validApiKey,
+                    'content_length' => strlen($content),
+                ]);
 
                 $response = Http::withHeaders($headers)
                     ->timeout(30)
@@ -94,18 +142,23 @@ class UploadLogsAction extends Action
                         $body .= "\n" . trans('pastefox-share::messages.expires_7_days');
                     }
 
+                    self::logInfo('File uploaded successfully', [
+                        'file' => $fileName,
+                        'url' => $url,
+                    ]);
+
                     Notification::make()
-                        ->title(trans('pastefox-share::messages.uploaded'))
+                        ->title(trans('pastefox-share::messages.file_uploaded'))
                         ->body($body)
                         ->persistent()
                         ->success()
                         ->send();
-
-                    self::logInfo('Console logs uploaded', [
-                        'server' => $server->name,
-                        'url' => $url,
-                    ]);
                 } else {
+                    self::logWarning('Upload failed', [
+                        'file' => $fileName,
+                        'error' => $response['error'] ?? 'Unknown error',
+                    ]);
+
                     Notification::make()
                         ->title(trans('pastefox-share::messages.upload_failed'))
                         ->body($response['error'] ?? 'Unknown error')
@@ -113,9 +166,10 @@ class UploadLogsAction extends Action
                         ->send();
                 }
             } catch (Exception $exception) {
-                self::logError('Console log upload failed', [
-                    'server' => $server->name,
+                self::logError('Exception during file upload', [
+                    'path' => $path,
                     'error' => $exception->getMessage(),
+                    'trace' => $exception->getTraceAsString(),
                 ]);
 
                 report($exception);
@@ -127,6 +181,32 @@ class UploadLogsAction extends Action
                     ->send();
             }
         });
+    }
+
+    protected function detectLanguage(string $extension): string
+    {
+        return match ($extension) {
+            'log' => 'log',
+            'json', 'mcmeta' => 'json',
+            'xml' => 'xml',
+            'yaml', 'yml' => 'yaml',
+            'ini', 'properties', 'cfg', 'conf', 'config' => 'ini',
+            'toml' => 'toml',
+            'html' => 'html',
+            'css' => 'css',
+            'js', 'ts' => 'javascript',
+            'php' => 'php',
+            'py' => 'python',
+            'java' => 'java',
+            'lua' => 'lua',
+            'sh', 'bash' => 'bash',
+            'bat', 'cmd' => 'batch',
+            'ps1' => 'powershell',
+            'sql' => 'sql',
+            'md' => 'markdown',
+            'csv', 'txt', 'env' => 'plaintext',
+            default => 'plaintext',
+        };
     }
 
     protected function getActiveCustomDomain(?string $apiKey): ?string

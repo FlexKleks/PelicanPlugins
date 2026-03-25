@@ -32,9 +32,6 @@ return [
     'effect_fireworks' => 'Fireworks',
     'effect_typewriter' => 'Typewriter',
     'effect_blur' => 'Blur Reveal',
-    'theme' => 'Theme',
-    'theme_dark' => 'Dark',
-    'theme_light' => 'Light',
     'password' => 'Password Protection',
     'password_helper' => 'Optional - 4-100 characters',
 
@@ -47,4 +44,16 @@ return [
     'custom_domain_no_api_key' => 'API key required for custom domains',
     'custom_domain_fetch_error' => 'Could not fetch domains',
     'custom_domain_inactive' => 'inactive',
+
+    // File sharing
+    'file_not_found' => 'File not found',
+    'file_type_not_allowed' => 'This file type cannot be shared. Only text-based files (log, txt, cfg, json, yaml, etc.) are supported.',
+
+    // Advanced
+    'section_advanced' => 'Advanced Settings',
+    'section_advanced_description' => 'Debug logging and feature toggles.',
+    'file_sharing' => 'File Sharing',
+    'file_sharing_helper' => 'Allow sharing files from the file editor via PasteFox.',
+    'debug' => 'Debug Logging',
+    'debug_helper' => 'Log all PasteFox Share actions to the Laravel log file for troubleshooting.',
 ];
